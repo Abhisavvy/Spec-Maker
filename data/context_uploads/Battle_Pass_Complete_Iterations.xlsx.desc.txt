@@ -1,0 +1,1 @@
+Contains free and vip pass reward structure

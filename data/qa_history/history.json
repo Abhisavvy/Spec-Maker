@@ -1,0 +1,126 @@
+[
+  {
+    "q": "Clarifying Questions Session",
+    "a": "1. Rewards are same as in free tiers, the rewards are just multiplied\n2. 10$ single price point, once per season not tier skips\n3. players get keys to progress, take context from seasons.pdf\n4. Bonus bank grants coins after completing progress bar when player has completed all tiers in season, paid players get more coins on the bonus bank"
+  },
+  {
+    "q": "Clarifying Questions Session",
+    "a": "1. No need for you to do it, I will add that manually\n2. I will add\n3. yes, it gets into claim state, player can manually claim all\n4. I will add"
+  },
+  {
+    "q": "Clarifying Questions Session",
+    "a": "1. No need for you to do it, I will add that manually\n2. I will add\n3. No seperate flow, once they have bought it, it will just turn the rewards in VIP tiers from locked to claim and unclaimed state\n4. I will add"
+  },
+  {
+    "q": "Clarifying Questions Session",
+    "a": "1. 2x \n2. banner showing 3x rewards\n3. I will add\n4. For example, if they are in level 40, they can claim vip rewards till level 39"
+  },
+  {
+    "q": "Clarifying Questions Session",
+    "a": "I will fill all of this"
+  },
+  {
+    "q": "Clarifying Questions Session",
+    "a": "I will fill all of this, leave a space for me to fill"
+  },
+  {
+    "q": "Clarifying Questions Session",
+    "a": "1. yes\n2. I will fill that, leave space\n3. Look through figma\n4. 3x\n5. When players click on 3x banner, VIP pass popup will appear"
+  },
+  {
+    "q": "Clarifying Questions Session",
+    "a": "1. The file has exact reward calculations\n2. I will add that, look into Vip Pass mock to get information\n3. Look into figma there should be a flow\n4. I will add that"
+  },
+  {
+    "q": "Clarifying Questions Session",
+    "a": "1. it will show on clicking 3x rewards banner\n2. Check the figma link it should have the flow there\n3. Provided in figma link\n4. they claim one by one"
+  },
+  {
+    "q": "Clarifying Questions Session",
+    "a": "1. check the excel file\n2. They are automatically claimed\n3. it gets removed, a mock of it is present in figma\n4. 1500 coins"
+  },
+  {
+    "q": "Clarifying Questions Session",
+    "a": "Leave a blank space for me to fill this"
+  },
+  {
+    "q": "Clarifying Questions Session",
+    "a": "1. Auto collected\n2. I will add it\n3. They will be shown how to play, check the figma url, mock should be there\n4. I will fill it later\n5. After successfully buying the pack, they are redirected to seasons screen"
+  },
+  {
+    "q": "Clarifying Questions Session",
+    "a": "1. Auto collected\n2. I will add it\n3. They will be shown how to play, check the figma url, mock should be there\n4. I will fill it later\n5. After successfully buying the pack, they are redirected to seasons screen"
+  },
+  {
+    "q": "Clarifying Questions Session",
+    "a": "1. It is a self contained cosmetic progression\n2. W2e sink is present after the final tier. player can watch a rewarded video to play one more puzzle\n3. reusing existing difficult puzzles\n4. streak days 15 post 15 days in the game, player can play an endless stream of dbh puzzles"
+  },
+  {
+    "q": "Clarifying Questions Session",
+    "a": "1. When player completes the puzzle\n2. Five orbs with five colours. Orbs represent tiers. Starting point is also considered an orb (for player who just completed DBH for the day)\n3. One after another\n4. look in figma, there is a game modes UI card with coloured orb and a tick mark"
+  },
+  {
+    "q": "Clarifying Questions Session",
+    "a": "1. Five orbs five colours\n2. After each tier are done. All 5 tiers make up your \" Bonus Puzzle\"\n3. 15 day streak is a pre requisite to unlock the 5 tier system and on completion of all the tiers players can unlock unlimited DBH for the day\n4. Check figma outro mocks and game modes card"
+  },
+  {
+    "q": "Clarifying Questions Session",
+    "a": "I will enter these manually"
+  },
+  {
+    "q": "Clarifying Questions Session",
+    "a": "1. Five tier progression\n2. I will fill that slide\n3. Its the name for 5 tier puzzle, on completing one puzzle players moves up the tier\n4. No"
+  },
+  {
+    "q": "Clarifying Questions Session",
+    "a": ""
+  },
+  {
+    "q": "Clarifying Questions Session",
+    "a": "1. Five orbs\n2. Complete DBH --> Unlock bonus puzzles (5 tiers) --> Unock unlimited DBH for the day\n3. One puzzle unlocked per tier completed\n4. Yes"
+  },
+  {
+    "q": "Clarifying Questions Session",
+    "a": "1. Five orbs\n2. Complete DBH --> Unlock bonus puzzles (5 tiers) --> Unock unlimited DBH for the day\n3. One puzzle unlocked per tier completed\n4. Yes"
+  },
+  {
+    "q": "Clarifying Questions Session",
+    "a": "I will fill this"
+  },
+  {
+    "q": "Clarifying Questions Session",
+    "a": "I will fill this"
+  },
+  {
+    "q": "Clarifying Questions Session",
+    "a": "I will fill this"
+  },
+  {
+    "q": "Clarifying Questions Session",
+    "a": "I will fill this"
+  },
+  {
+    "q": "Clarifying Questions Session",
+    "a": "I will fill all these seperately"
+  },
+  {
+    "q": "Clarifying Questions Session",
+    "a": "I will fill all these seperately"
+  },
+  {
+    "q": "Clarifying Questions Session",
+    "a": "I will fill all these seperately"
+  },
+  {
+    "q": "Clarifying Questions Session",
+    "a": "I will fill this"
+  },
+  {
+    "q": "Clarifying Questions Session",
+    "a": "I will fill this"
+  },
+  {
+    "q": "Clarifying Questions Session",
+    "a": "1. Thry can retry\n2. Curated list\n3. eward the progress towards unlocking the final 'unlimited' mode\n4. I will fill that"
+  }
+]

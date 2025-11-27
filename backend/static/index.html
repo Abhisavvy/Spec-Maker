@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GDD Maker</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        h1 {
+            color: #333;
+        }
+
+        .card {
+            border: 1px solid #ddd;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            background: #f9f9f9;
+        }
+
+        .btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .btn:hover {
+            background: #0056b3;
+        }
+
+        textarea {
+            width: 100%;
+            height: 100px;
+            margin-bottom: 10px;
+            padding: 8px;
+        }
+
+        #output {
+            white-space: pre-wrap;
+            background: #eee;
+            padding: 15px;
+            border-radius: 4px;
+            display: none;
+        }
+
+        .status {
+            color: #666;
+            font-style: italic;
+            margin-top: 5px;
+        }
+
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #ddd;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            font-weight: bold;
+            color: #666;
+        }
+
+        .tab.active {
+            color: #007bff;
+            border-bottom: 2px solid #007bff;
+            margin-bottom: -2px;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .chat-box {
+            height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-bottom: 10px;
+            background: #f9f9f9;
+            border-radius: 4px;
+        }
+
+        .chat-msg {
+            margin-bottom: 15px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+
+        .chat-msg.user {
+            text-align: right;
+            background: #e3f2fd;
+            color: #1976d2;
+            margin-left: 20%;
+        }
+
+        .chat-msg.bot {
+            text-align: left;
+            background: #fff;
+            color: #333;
+            margin-right: 20%;
+            border: 1px solid #e0e0e0;
+        }
+
+        .chat-msg.bot h2,
+        .chat-msg.bot h3 {
+            margin-top: 10px;
+            margin-bottom: 5px;
+        }
+
+        .chat-msg.bot ul,
+        .chat-msg.bot ol {
+            margin-left: 20px;
+        }
+
+        .chat-msg.bot code {
+            background: #f5f5f5;
+            padding: 2px 5px;
+            border-radius: 3px;
+        }
+
+        .chat-msg.bot pre {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+
+        .chat-msg.bot table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 10px 0;
+        }
+
+        .chat-msg.bot table td,
+        .chat-msg.bot table th {
+            border: 1px solid #ddd;
+            padding: 8px;
+        }
+
+        .chat-msg.bot table th {
+            background: #f0f0f0;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Spec Maker</h1>
+
+    <div class="tabs">
+        <div class="tab active" onclick="switchTab('generator', this)">Generator</div>
+        <div class="tab" onclick="switchTab('chat', this)">Chat with Specs</div>
+    </div>
+
+    <!-- GENERATOR TAB -->
+    <div id="generator" class="tab-content active">
+        <div class="card">
+            <h2>1. Configuration</h2>
+            <p>Files are loaded from the <code>data/</code> directory.</p>
+            <button id="checkFilesBtn" class="btn">Check Files</button>
+            <div id="fileStatus" class="status"></div>
+        </div>
+
+        <div class="card">
+            <h2>2. Figma Integration</h2>
+            <input type="text" id="figmaToken" placeholder="Figma Personal Access Token"
+                style="width: 100%; margin-bottom: 10px; padding: 8px;">
+            <input type="text" id="figmaUrl" placeholder="Figma File URL"
+                style="width: 100%; margin-bottom: 10px; padding: 8px;">
+        </div>
+
+        <div class="card">
+            <h2>3. Additional Context</h2>
+            <p>Upload PDFs, Excel sheets, or Images with a description to give the agent more context.</p>
+            <input type="file" id="contextFile" style="margin-bottom: 10px;">
+            <textarea id="contextDesc"
+                placeholder="Describe what this file is (e.g., 'Competitor Analysis', 'Art Style Guide')..."
+                style="height: 60px;"></textarea>
+            <button id="uploadContextBtn" class="btn" style="background: #17a2b8;">Upload Context File</button>
+            <div id="uploadStatus" class="status"></div>
+        </div>
+
+        <div class="card">
+            <h2>4. Generate Spec</h2>
+            <textarea id="prompt" placeholder="Describe the game you want to build..."></textarea>
+            <button id="generateBtn" class="btn">Generate Spec</button>
+            <div id="genStatus" class="status"></div>
+        </div>
+
+        <div id="qaSection" class="card" style="display:none; border-color: #ffc107; background: #fff3cd;">
+            <h3>Clarifying Questions</h3>
+            <p>I need a bit more info to write a great GDD:</p>
+            <div id="questionsList"></div>
+            <textarea id="answers" placeholder="Type your answers here..."></textarea>
+            <button id="submitAnswersBtn" class="btn">Submit Answers & Generate</button>
+        </div>
+
+        <div id="output"></div>
+    </div>
+
+    <!-- CHAT TAB -->
+    <div id="chat" class="tab-content">
+        <div class="card">
+            <h2>Ask about the Specs</h2>
+            <p>Ask questions about the loaded GDDs and Slides. The chat remembers your conversation for context.</p>
+            <button id="clearChatBtn" class="btn" style="background: #dc3545; float: right;">Clear Chat History</button>
+            <div id="chatBox" class="chat-box"></div>
+            <div style="display: flex; gap: 10px;">
+                <input type="text" id="chatInput" placeholder="Ask a question..." style="flex: 1; padding: 8px;">
+                <button id="chatSendBtn" class="btn">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = '';
+
+        function switchTab(tabId, clickedTab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+            clickedTab.classList.add('active');
+            document.getElementById(tabId).classList.add('active');
+        }
+
+        const generateBtn = document.getElementById('generateBtn');
+        const checkFilesBtn = document.getElementById('checkFilesBtn');
+        const qaSection = document.getElementById('qaSection');
+        const submitAnswersBtn = document.getElementById('submitAnswersBtn');
+
+        function setBusy(busy) {
+            generateBtn.disabled = busy;
+            checkFilesBtn.disabled = busy;
+            submitAnswersBtn.disabled = busy;
+            if (busy) {
+                generateBtn.textContent = 'Processing...';
+            } else {
+                generateBtn.textContent = 'Generate Spec';
+            }
+        }
+
+        // CHAT LOGIC
+        const chatBox = document.getElementById('chatBox');
+        const chatInput = document.getElementById('chatInput');
+        const chatSendBtn = document.getElementById('chatSendBtn');
+        const uploadContextBtn = document.getElementById('uploadContextBtn');
+
+        uploadContextBtn.addEventListener('click', async () => {
+            const fileInput = document.getElementById('contextFile');
+            const descInput = document.getElementById('contextDesc');
+            const statusDiv = document.getElementById('uploadStatus');
+
+            if (!fileInput.files[0] || !descInput.value) {
+                alert("Please select a file and provide a description.");
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('description', descInput.value);
+
+            statusDiv.textContent = "Uploading...";
+            uploadContextBtn.disabled = true;
+
+            try {
+                const res = await fetch(`${API_URL}/api/upload-context`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+                statusDiv.textContent = `Uploaded: ${data.filename}`;
+                fileInput.value = '';
+                descInput.value = '';
+            } catch (e) {
+                statusDiv.textContent = "Upload failed.";
+                console.error(e);
+            } finally {
+                uploadContextBtn.disabled = false;
+            }
+        });
+
+        function appendMessage(text, sender) {
+            const div = document.createElement('div');
+            div.className = `chat-msg ${sender}`;
+
+            if (sender === 'bot') {
+                // Render markdown for bot responses
+                div.innerHTML = marked.parse(text);
+            } else {
+                // Plain text for user messages
+                div.textContent = text;
+            }
+
+            chatBox.appendChild(div);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        const clearChatBtn = document.getElementById('clearChatBtn');
+
+        clearChatBtn.addEventListener('click', async () => {
+            if (!confirm('Clear all chat history?')) return;
+
+            try {
+                await fetch(`${API_URL}/api/clear-chat`, { method: 'POST' });
+                chatBox.innerHTML = '';
+                appendMessage('Chat history cleared. How can I help you?', 'bot');
+            } catch (e) {
+                console.error(e);
+            }
+        });
+
+        chatSendBtn.addEventListener('click', async () => {
+            const question = chatInput.value;
+            if (!question) return;
+
+            appendMessage(question, 'user');
+            chatInput.value = '';
+
+            try {
+                const res = await fetch(`${API_URL}/api/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ question })
+                });
+                const data = await res.json();
+                appendMessage(data.answer, 'bot');
+            } catch (e) {
+                appendMessage("Error connecting to chat service.", 'bot');
+                console.error(e);
+            }
+        });
+
+        // Allow Enter key to send
+        chatInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') chatSendBtn.click();
+        });
+
+        document.getElementById('checkFilesBtn').addEventListener('click', async () => {
+            const statusDiv = document.getElementById('fileStatus');
+            statusDiv.textContent = 'Checking files...';
+            setBusy(true);
+            try {
+                const res = await fetch(`${API_URL}/api/check-files`);
+                const data = await res.json();
+                statusDiv.innerHTML = `
+                    <strong>GDDs:</strong> ${data.gdds.length} files<br>
+                    <strong>Slides:</strong> ${data.slides.length} files<br>
+                    <strong>Edge Cases:</strong> ${data.edge_cases ? 'Found' : 'Not Found'}
+                `;
+            } catch (e) {
+                statusDiv.textContent = 'Error connecting to backend.';
+                console.error(e);
+            } finally {
+                setBusy(false);
+            }
+        });
+
+        async function performGeneration(finalPrompt) {
+            const figmaToken = document.getElementById('figmaToken').value;
+            const figmaUrl = document.getElementById('figmaUrl').value;
+            const statusDiv = document.getElementById('genStatus');
+            const outputDiv = document.getElementById('output');
+
+            statusDiv.textContent = 'Generating... (this may take a while)';
+            outputDiv.style.display = 'none';
+            qaSection.style.display = 'none';
+            setBusy(true);
+
+            try {
+                const res = await fetch(`${API_URL}/api/generate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt: finalPrompt, figma_token: figmaToken, figma_url: figmaUrl })
+                });
+                const data = await res.json();
+                outputDiv.textContent = data.gdd;
+                outputDiv.style.display = 'block';
+
+                if (data.pptx_url) {
+                    statusDiv.innerHTML = `Done! <a href="${API_URL}${data.pptx_url}" class="btn" style="background: #28a745; text-decoration: none; margin-left: 10px;">Download PPTX</a>`;
+                } else {
+                    statusDiv.textContent = 'Done!';
+                }
+            } catch (e) {
+                statusDiv.textContent = 'Error generating GDD.';
+                console.error(e);
+            } finally {
+                setBusy(false);
+            }
+        }
+
+        generateBtn.addEventListener('click', async () => {
+            const prompt = document.getElementById('prompt').value;
+            const statusDiv = document.getElementById('genStatus');
+
+            if (!prompt) {
+                alert('Please enter a game description.');
+                return;
+            }
+
+            statusDiv.textContent = 'Analyzing request...';
+            setBusy(true);
+            qaSection.style.display = 'none';
+
+            try {
+                // 1. Analyze
+                const res = await fetch(`${API_URL}/api/analyze`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt: prompt })
+                });
+                const data = await res.json();
+
+                if (data.questions && data.questions.length > 0) {
+                    // Show questions
+                    const qList = document.getElementById('questionsList');
+                    qList.innerHTML = '<ul>' + data.questions.map(q => `<li>${q}</li>`).join('') + '</ul>';
+                    qaSection.style.display = 'block';
+                    statusDiv.textContent = 'Clarification needed.';
+                    setBusy(false); // Re-enable to allow answering
+                } else {
+                    // Proceed directly
+                    performGeneration(prompt);
+                }
+            } catch (e) {
+                console.error(e);
+                // Fallback to direct generation if analysis fails
+                performGeneration(prompt);
+            }
+        });
+
+        submitAnswersBtn.addEventListener('click', async () => {
+            const prompt = document.getElementById('prompt').value;
+            const answers = document.getElementById('answers').value;
+
+            // Try to save this Q&A pair contextually
+            // Since we have a blob of questions and a blob of answers, we'll just save them as one "Session" entry for now
+            // Or better, if we can, we just save the aggregate.
+            // For simplicity in this version, we'll save the whole block.
+
+            try {
+                await fetch(`${API_URL}/api/save-qa`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        question: "Clarifying Questions Session",
+                        answer: answers
+                    })
+                });
+            } catch (e) {
+                console.error("Failed to save QA history", e);
+            }
+
+            const finalPrompt = `${prompt}\n\nADDITIONAL CONTEXT:\n${answers}`;
+            performGeneration(finalPrompt);
+        });
+    </script>
+</body>
+
+</html>
