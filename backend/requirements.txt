@@ -1,12 +1,11 @@
 fastapi
 uvicorn
 python-multipart
-pydantic
-requests
-google-generativeai
-python-docx
-PyPDF2
 python-pptx
+google-generativeai
 python-dotenv
-openpyxl
+requests
+pillow
 pandas
+openpyxl
+pypdf

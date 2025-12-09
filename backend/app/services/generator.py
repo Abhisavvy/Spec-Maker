@@ -60,6 +60,7 @@ class GeneratorService:
         # 2. Fetch Figma Data
         figma_content = ""
         figma_images = {}
+        flow_data = {} # Initialize to avoid UnboundLocalError
         if figma_token and figma_url:
             print("Fetching Figma data...")
             try:
