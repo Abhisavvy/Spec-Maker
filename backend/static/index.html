@@ -158,6 +158,63 @@
         .chat-msg.bot table th {
             background: #f0f0f0;
         }
+
+        /* Loading Bar Styles */
+        .progress-container {
+            margin-top: 15px;
+            display: none;
+        }
+
+        .progress-container.active {
+            display: block;
+        }
+
+        .progress-bar-wrapper {
+            width: 100%;
+            height: 30px;
+            background-color: #e0e0e0;
+            border-radius: 15px;
+            overflow: hidden;
+            position: relative;
+            margin-bottom: 10px;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #007bff, #0056b3);
+            width: 0%;
+            transition: width 0.3s ease;
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 12px;
+        }
+
+        .progress-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 5px;
+            font-size: 14px;
+        }
+
+        .progress-stage {
+            color: #666;
+            font-style: italic;
+        }
+
+        .progress-time {
+            color: #007bff;
+            font-weight: bold;
+        }
+
+        .progress-percentage {
+            color: #333;
+            font-weight: bold;
+        }
     </style>
 </head>
 
@@ -167,6 +224,7 @@
     <div class="tabs">
         <div class="tab active" onclick="switchTab('generator', this)">Generator</div>
         <div class="tab" onclick="switchTab('chat', this)">Chat with Specs</div>
+        <div class="tab" onclick="switchTab('verifier', this)">Spec Verifier</div>
     </div>
 
     <!-- GENERATOR TAB -->
@@ -174,6 +232,11 @@
         <div class="card">
             <h2>1. Configuration</h2>
             <p>Files are loaded from the <code>data/</code> directory.</p>
+            <p style="color: #856404; background: #fff3cd; padding: 10px; border-radius: 4px; margin-bottom: 10px;">
+                <strong>⚠️ Template Required:</strong> Make sure <code>data/slides/Spec Template.pptx</code> exists. 
+                This template defines the format and structure of generated specs. 
+                See <code>data/slides/README.md</code> for details.
+            </p>
             <button id="checkFilesBtn" class="btn">Check Files</button>
             <div id="fileStatus" class="status"></div>
         </div>
@@ -202,6 +265,16 @@
             <textarea id="prompt" placeholder="Describe the game you want to build..."></textarea>
             <button id="generateBtn" class="btn">Generate Spec</button>
             <div id="genStatus" class="status"></div>
+            <div id="progressContainer" class="progress-container">
+                <div class="progress-bar-wrapper">
+                    <div id="progressBar" class="progress-bar">0%</div>
+                </div>
+                <div class="progress-info">
+                    <span id="progressStage" class="progress-stage">Initializing...</span>
+                    <span id="progressTime" class="progress-time">Estimating time...</span>
+                    <span id="progressPercentage" class="progress-percentage">0%</span>
+                </div>
+            </div>
         </div>
 
         <div id="qaSection" class="card" style="display:none; border-color: #ffc107; background: #fff3cd;">
@@ -225,6 +298,52 @@
             <div style="display: flex; gap: 10px;">
                 <input type="text" id="chatInput" placeholder="Ask a question..." style="flex: 1; padding: 8px;">
                 <button id="chatSendBtn" class="btn">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SPEC VERIFIER TAB -->
+    <div id="verifier" class="tab-content">
+        <div class="card">
+            <h2>Spec Verifier</h2>
+            <p>Upload a spec (PDF or PPT) to check for conflicts, gaps, potential threats, and format issues against all existing specs (53 specs).</p>
+            
+            <div style="margin: 20px 0;">
+                <input type="file" id="verifyFile" accept=".pdf,.pptx,.ppt" style="margin-bottom: 10px; width: 100%; padding: 8px;">
+                <button id="verifyBtn" class="btn" style="background: #28a745;">Verify Spec</button>
+                <div id="verifyStatus" class="status"></div>
+            </div>
+
+            <div id="verifyResults" style="display: none;">
+                <div class="card" style="background: #fff3cd; border-color: #ffc107; margin-top: 20px;">
+                    <h3>Summary</h3>
+                    <div id="verifySummary"></div>
+                </div>
+
+                <div class="card" style="background: #f8d7da; border-color: #dc3545; margin-top: 20px;">
+                    <h3>Conflicts</h3>
+                    <div id="verifyConflicts"></div>
+                </div>
+
+                <div class="card" style="background: #d1ecf1; border-color: #17a2b8; margin-top: 20px;">
+                    <h3>Gaps</h3>
+                    <div id="verifyGaps"></div>
+                </div>
+
+                <div class="card" style="background: #fff3cd; border-color: #ffc107; margin-top: 20px;">
+                    <h3>Potential Threats</h3>
+                    <div id="verifyThreats"></div>
+                </div>
+
+                <div class="card" style="background: #d4edda; border-color: #28a745; margin-top: 20px;">
+                    <h3>Format & Structure Issues</h3>
+                    <div id="verifyFormat"></div>
+                </div>
+
+                <div class="card" style="background: #e2e3e5; border-color: #6c757d; margin-top: 20px;">
+                    <h3>Clarifying Questions</h3>
+                    <div id="verifyQuestions"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -359,9 +478,14 @@
             try {
                 const res = await fetch(`${API_URL}/api/check-files`);
                 const data = await res.json();
+                let slidesStatus = `${data.slides.length} files`;
+                if (data.slides.length === 0) {
+                    slidesStatus = `<span style="color: #dc3545; font-weight: bold;">0 files - ⚠️ Template missing!</span><br>
+                        <small style="color: #856404;">Add <code>Spec Template.pptx</code> to <code>data/slides/</code> folder. See README.md for details.</small>`;
+                }
                 statusDiv.innerHTML = `
                     <strong>GDDs:</strong> ${data.gdds.length} files<br>
-                    <strong>Slides:</strong> ${data.slides.length} files<br>
+                    <strong>Slides:</strong> ${slidesStatus}<br>
                     <strong>Edge Cases:</strong> ${data.edge_cases ? 'Found' : 'Not Found'}
                 `;
             } catch (e) {
@@ -377,21 +501,166 @@
             const figmaUrl = document.getElementById('figmaUrl').value;
             const statusDiv = document.getElementById('genStatus');
             const outputDiv = document.getElementById('output');
+            const progressContainer = document.getElementById('progressContainer');
+            const progressBar = document.getElementById('progressBar');
+            const progressStage = document.getElementById('progressStage');
+            const progressTime = document.getElementById('progressTime');
+            const progressPercentage = document.getElementById('progressPercentage');
 
-            statusDiv.textContent = 'Generating... (this may take a while)';
+            // Show progress bar
+            progressContainer.classList.add('active');
             outputDiv.style.display = 'none';
             qaSection.style.display = 'none';
             setBusy(true);
 
+            // Progress tracking
+            const startTime = Date.now();
+            const stages = [
+                { name: 'Loading context files...', duration: 5000, progress: 10 },
+                { name: 'Fetching Figma data...', duration: figmaToken && figmaUrl ? 10000 : 0, progress: 20 },
+                { name: 'Analyzing requirements...', duration: 8000, progress: 30 },
+                { name: 'Generating GDD content...', duration: 45000, progress: 70 },
+                { name: 'Creating PowerPoint presentation...', duration: 12000, progress: 90 },
+                { name: 'Finalizing...', duration: 3000, progress: 100 }
+            ];
+
+            let currentStageIndex = 0;
+            let totalEstimatedTime = stages.reduce((sum, stage) => sum + stage.duration, 0);
+            
+            // Update progress function
+            function updateProgress() {
+                const elapsed = Date.now() - startTime;
+                let accumulatedProgress = 0;
+                let accumulatedTime = 0;
+                let currentProgress = 0;
+
+                // Calculate which stage we're in and progress
+                for (let i = 0; i < stages.length; i++) {
+                    if (i < currentStageIndex) {
+                        accumulatedProgress = stages[i].progress;
+                        accumulatedTime += stages[i].duration;
+                    } else if (i === currentStageIndex) {
+                        const stageElapsed = elapsed - accumulatedTime;
+                        // If we've exceeded the stage duration, still show progress but slower
+                        if (stageElapsed > stages[i].duration && stages[i].duration > 0) {
+                            // Continue progress but at a slower rate (10% per extra duration)
+                            const extraTime = stageElapsed - stages[i].duration;
+                            const extraProgress = Math.min(extraTime / (stages[i].duration * 2), 0.1);
+                            currentProgress = accumulatedProgress + (stages[i].progress - accumulatedProgress) + extraProgress * (stages[i].progress - accumulatedProgress);
+                        } else {
+                            const stageProgress = stages[i].duration > 0 ? (stageElapsed / stages[i].duration) : 1;
+                            currentProgress = accumulatedProgress + (stages[i].progress - accumulatedProgress) * stageProgress;
+                        }
+                        break;
+                    }
+                }
+
+                // If we've exceeded all estimated times, show gradual progress to 95%
+                if (elapsed > totalEstimatedTime) {
+                    const extraTime = elapsed - totalEstimatedTime;
+                    const extraProgress = Math.min(extraTime / (totalEstimatedTime * 0.5), 0.15); // Up to 15% more
+                    currentProgress = Math.min(95, 85 + extraProgress * 10); // Gradually move from 85% to 95%
+                }
+
+                // Update UI
+                const percentage = Math.min(Math.round(currentProgress), 95); // Cap at 95% until actually done
+                progressBar.style.width = percentage + '%';
+                progressBar.textContent = percentage + '%';
+                progressPercentage.textContent = percentage + '%';
+
+                // Update stage
+                if (currentStageIndex < stages.length) {
+                    progressStage.textContent = stages[currentStageIndex].name;
+                } else {
+                    progressStage.textContent = 'Processing...';
+                }
+
+                // Estimate remaining time (adaptive based on elapsed time)
+                if (percentage < 95) {
+                    let estimatedRemaining;
+                    if (elapsed < totalEstimatedTime) {
+                        // Use original estimate
+                        estimatedRemaining = totalEstimatedTime - elapsed;
+                    } else {
+                        // If we've exceeded estimate, extrapolate based on current progress
+                        const progressRate = percentage / elapsed; // % per millisecond
+                        estimatedRemaining = (100 - percentage) / progressRate;
+                    }
+                    
+                    const minutes = Math.floor(estimatedRemaining / 60000);
+                    const seconds = Math.floor((estimatedRemaining % 60000) / 1000);
+                    
+                    if (minutes > 0) {
+                        progressTime.textContent = `~${minutes}m ${seconds}s remaining`;
+                    } else if (seconds > 0) {
+                        progressTime.textContent = `~${seconds}s remaining`;
+                    } else {
+                        progressTime.textContent = 'Finishing up...';
+                    }
+                } else {
+                    progressTime.textContent = 'Almost done...';
+                }
+
+                // Move to next stage if current stage is complete
+                if (currentStageIndex < stages.length - 1) {
+                    let stageTime = 0;
+                    for (let i = 0; i <= currentStageIndex; i++) {
+                        stageTime += stages[i].duration;
+                    }
+                    if (elapsed >= stageTime) {
+                        currentStageIndex++;
+                    }
+                }
+            }
+
+            // Start progress updates
+            const progressInterval = setInterval(updateProgress, 500);
+            updateProgress(); // Initial update
+
             try {
+                statusDiv.textContent = 'Generating...';
+                
+                // Create an AbortController for timeout
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
+                
                 const res = await fetch(`${API_URL}/api/generate`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ prompt: finalPrompt, figma_token: figmaToken, figma_url: figmaUrl })
+                    body: JSON.stringify({ prompt: finalPrompt, figma_token: figmaToken, figma_url: figmaUrl }),
+                    signal: controller.signal
                 });
+                
+                clearTimeout(timeoutId);
+                
+                if (!res.ok) {
+                    const errorData = await res.json().catch(() => ({ detail: res.statusText }));
+                    const errorMsg = errorData.detail || errorData.error || `Server error: ${res.status} ${res.statusText}`;
+                    if (res.status === 401) {
+                        throw new Error(`Invalid API Key: ${errorMsg}. Please check your .env file.`);
+                    }
+                    if (res.status === 429) {
+                        throw new Error(`Quota Exceeded: ${errorMsg}. Please check your Gemini API quota or wait before retrying.`);
+                    }
+                    throw new Error(errorMsg);
+                }
+                
                 const data = await res.json();
+                clearInterval(progressInterval);
+                
+                // Complete the progress bar
+                progressBar.style.width = '100%';
+                progressBar.textContent = '100%';
+                progressPercentage.textContent = '100%';
+                progressStage.textContent = 'Complete!';
+                progressTime.textContent = 'Done!';
+                
+                // Wait a moment to show completion
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
                 outputDiv.textContent = data.gdd;
                 outputDiv.style.display = 'block';
+                progressContainer.classList.remove('active');
 
                 if (data.pptx_url) {
                     statusDiv.innerHTML = `Done! <a href="${API_URL}${data.pptx_url}" class="btn" style="background: #28a745; text-decoration: none; margin-left: 10px;">Download PPTX</a>`;
@@ -399,8 +668,18 @@
                     statusDiv.textContent = 'Done!';
                 }
             } catch (e) {
-                statusDiv.textContent = 'Error generating GDD.';
-                console.error(e);
+                clearInterval(progressInterval);
+                progressContainer.classList.remove('active');
+                
+                let errorMessage = 'Error generating GDD.';
+                if (e.name === 'AbortError') {
+                    errorMessage = 'Request timed out. The generation is taking longer than expected. Please try again or check your API key.';
+                } else if (e.message) {
+                    errorMessage = `Error: ${e.message}`;
+                }
+                
+                statusDiv.innerHTML = `<span style="color: #dc3545;">${errorMessage}</span><br><small>Check the browser console for details.</small>`;
+                console.error('Generation error:', e);
             } finally {
                 setBusy(false);
             }
@@ -409,15 +688,43 @@
         generateBtn.addEventListener('click', async () => {
             const prompt = document.getElementById('prompt').value;
             const statusDiv = document.getElementById('genStatus');
+            const progressContainer = document.getElementById('progressContainer');
+            const progressBar = document.getElementById('progressBar');
+            const progressStage = document.getElementById('progressStage');
+            const progressTime = document.getElementById('progressTime');
+            const progressPercentage = document.getElementById('progressPercentage');
 
             if (!prompt) {
                 alert('Please enter a game description.');
                 return;
             }
 
+            // Show progress for analysis phase
+            progressContainer.classList.add('active');
+            progressBar.style.width = '0%';
+            progressBar.textContent = '0%';
+            progressPercentage.textContent = '0%';
+            progressStage.textContent = 'Analyzing request...';
+            progressTime.textContent = 'Estimating time...';
+            
             statusDiv.textContent = 'Analyzing request...';
             setBusy(true);
             qaSection.style.display = 'none';
+
+            const analysisStartTime = Date.now();
+            const analysisInterval = setInterval(() => {
+                const elapsed = Date.now() - analysisStartTime;
+                const estimatedTime = 5000; // 5 seconds for analysis
+                const progress = Math.min(100, Math.round((elapsed / estimatedTime) * 100));
+                progressBar.style.width = progress + '%';
+                progressBar.textContent = progress + '%';
+                progressPercentage.textContent = progress + '%';
+                
+                const remaining = Math.max(0, estimatedTime - elapsed);
+                if (remaining > 0) {
+                    progressTime.textContent = `~${Math.ceil(remaining / 1000)}s remaining`;
+                }
+            }, 100);
 
             try {
                 // 1. Analyze
@@ -426,6 +733,27 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ prompt: prompt })
                 });
+                
+                clearInterval(analysisInterval);
+                progressContainer.classList.remove('active');
+                
+                if (!res.ok) {
+                    const errorData = await res.json().catch(() => ({ detail: res.statusText }));
+                    if (res.status === 401) {
+                        statusDiv.innerHTML = `<span style="color: #dc3545; font-weight: bold;">⚠️ ${errorData.detail || 'Invalid API Key'}</span><br>
+                            <small>Please check your <code>.env</code> file in the backend folder and ensure <code>GEMINI_API_KEY</code> is set correctly.</small>`;
+                        setBusy(false);
+                        return;
+                    }
+                    if (res.status === 429) {
+                        statusDiv.innerHTML = `<span style="color: #dc3545; font-weight: bold;">⚠️ Quota Exceeded</span><br>
+                            <small>${errorData.detail || 'Your Gemini API quota has been exceeded. Please check your quota limits or wait before retrying.'}</small>`;
+                        setBusy(false);
+                        return;
+                    }
+                    throw new Error(errorData.detail || `Analysis failed: ${res.statusText}`);
+                }
+                
                 const data = await res.json();
 
                 if (data.questions && data.questions.length > 0) {
@@ -440,8 +768,16 @@
                     performGeneration(prompt);
                 }
             } catch (e) {
+                clearInterval(analysisInterval);
+                progressContainer.classList.remove('active');
                 console.error(e);
-                // Fallback to direct generation if analysis fails
+                // If it's an API key error, don't proceed
+                if (e.message && e.message.includes('API key')) {
+                    statusDiv.innerHTML = `<span style="color: #dc3545; font-weight: bold;">⚠️ ${e.message}</span>`;
+                    setBusy(false);
+                    return;
+                }
+                // Fallback to direct generation if analysis fails for other reasons
                 performGeneration(prompt);
             }
         });
@@ -470,6 +806,112 @@
 
             const finalPrompt = `${prompt}\n\nADDITIONAL CONTEXT:\n${answers}`;
             performGeneration(finalPrompt);
+        });
+
+        // SPEC VERIFIER LOGIC
+        const verifyBtn = document.getElementById('verifyBtn');
+        const verifyFile = document.getElementById('verifyFile');
+        const verifyStatus = document.getElementById('verifyStatus');
+        const verifyResults = document.getElementById('verifyResults');
+
+        verifyBtn.addEventListener('click', async () => {
+            if (!verifyFile.files[0]) {
+                alert('Please select a PDF or PPT file to verify.');
+                return;
+            }
+
+            const file = verifyFile.files[0];
+            const formData = new FormData();
+            formData.append('file', file);
+
+            verifyStatus.textContent = 'Verifying spec... (this may take a while)';
+            verifyBtn.disabled = true;
+            verifyResults.style.display = 'none';
+
+            try {
+                const res = await fetch(`${API_URL}/api/verify-spec`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!res.ok) {
+                    const errorData = await res.json().catch(() => ({ detail: res.statusText }));
+                    throw new Error(errorData.detail || `Server error: ${res.status}`);
+                }
+
+                const data = await res.json();
+
+                if (data.error) {
+                    verifyStatus.innerHTML = `<span style="color: #dc3545;">Error: ${data.error}</span>`;
+                    return;
+                }
+
+                // Display results
+                verifyStatus.textContent = 'Verification complete!';
+                verifyResults.style.display = 'block';
+
+                // Summary
+                document.getElementById('verifySummary').innerHTML = `<p>${data.summary || 'No summary available.'}</p>`;
+
+                // Conflicts
+                const conflictsHtml = data.conflicts && data.conflicts.length > 0
+                    ? data.conflicts.map(c => `
+                        <div style="margin: 10px 0; padding: 10px; background: white; border-radius: 4px;">
+                            <strong>${c.type || 'Conflict'}</strong> <span style="color: ${c.severity === 'High' ? '#dc3545' : c.severity === 'Medium' ? '#ffc107' : '#6c757d'};">(${c.severity || 'Unknown'})</span><br>
+                            <p>${c.description || ''}</p>
+                            ${c.related_specs ? `<small>Related specs: ${c.related_specs.join(', ')}</small>` : ''}
+                        </div>
+                    `).join('')
+                    : '<p>No conflicts found.</p>';
+                document.getElementById('verifyConflicts').innerHTML = conflictsHtml;
+
+                // Gaps
+                const gapsHtml = data.gaps && data.gaps.length > 0
+                    ? data.gaps.map(g => `
+                        <div style="margin: 10px 0; padding: 10px; background: white; border-radius: 4px;">
+                            <strong>${g.section || 'Missing Section'}</strong> <span style="color: ${g.impact === 'High' ? '#dc3545' : g.impact === 'Medium' ? '#ffc107' : '#6c757d'};">(${g.impact || 'Unknown'})</span><br>
+                            <p>${g.description || ''}</p>
+                        </div>
+                    `).join('')
+                    : '<p>No gaps identified.</p>';
+                document.getElementById('verifyGaps').innerHTML = gapsHtml;
+
+                // Threats
+                const threatsHtml = data.threats && data.threats.length > 0
+                    ? data.threats.map(t => `
+                        <div style="margin: 10px 0; padding: 10px; background: white; border-radius: 4px;">
+                            <strong>${t.type || 'Threat'}</strong> <span style="color: ${t.severity === 'High' ? '#dc3545' : t.severity === 'Medium' ? '#ffc107' : '#6c757d'};">(${t.severity || 'Unknown'})</span><br>
+                            <p>${t.description || ''}</p>
+                            ${t.recommendation ? `<p><strong>Recommendation:</strong> ${t.recommendation}</p>` : ''}
+                        </div>
+                    `).join('')
+                    : '<p>No threats identified.</p>';
+                document.getElementById('verifyThreats').innerHTML = threatsHtml;
+
+                // Format Issues
+                const formatHtml = data.format_issues && data.format_issues.length > 0
+                    ? data.format_issues.map(f => `
+                        <div style="margin: 10px 0; padding: 10px; background: white; border-radius: 4px;">
+                            <strong>${f.issue || 'Format Issue'}</strong><br>
+                            <p>${f.description || ''}</p>
+                            ${f.recommendation ? `<p><strong>Recommendation:</strong> ${f.recommendation}</p>` : ''}
+                        </div>
+                    `).join('')
+                    : '<p>No format issues found.</p>';
+                document.getElementById('verifyFormat').innerHTML = formatHtml;
+
+                // Questions
+                const questionsHtml = data.questions && data.questions.length > 0
+                    ? '<ul>' + data.questions.map(q => `<li>${q}</li>`).join('') + '</ul>'
+                    : '<p>No clarifying questions.</p>';
+                document.getElementById('verifyQuestions').innerHTML = questionsHtml;
+
+            } catch (e) {
+                verifyStatus.innerHTML = `<span style="color: #dc3545;">Error: ${e.message}</span>`;
+                console.error(e);
+            } finally {
+                verifyBtn.disabled = false;
+            }
         });
     </script>
 </body>

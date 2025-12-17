@@ -1,6 +1,6 @@
 import os
 from typing import List, Dict, Any
-import PyPDF2
+from pypdf import PdfReader
 from docx import Document
 import pandas as pd
 
@@ -11,7 +11,7 @@ class DocumentParser:
         text = ""
         try:
             with open(file_path, 'rb') as file:
-                reader = PyPDF2.PdfReader(file)
+                reader = PdfReader(file)
                 for page in reader.pages:
                     text += page.extract_text() + "\n"
         except Exception as e:

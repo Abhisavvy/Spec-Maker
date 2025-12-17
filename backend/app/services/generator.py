@@ -10,7 +10,13 @@ class GeneratorService:
         self.api_key = os.environ.get("GEMINI_API_KEY")
         if self.api_key:
             genai.configure(api_key=self.api_key)
-            self.model = genai.GenerativeModel('gemini-pro-latest')
+            # Set a default model for initialization check
+            # Actual model selection happens dynamically in generate_gdd method
+            try:
+                self.model = genai.GenerativeModel('gemini-2.5-flash')
+            except Exception as e:
+                print(f"WARNING: Could not initialize model: {e}")
+                self.model = None
         else:
             self.model = None
             print("WARNING: GEMINI_API_KEY not found in environment variables.")
@@ -18,8 +24,14 @@ class GeneratorService:
     def generate_gdd(self, prompt: str, figma_token: Optional[str], figma_url: Optional[str], 
                      gdds_dir: str, slides_dir: str, edge_cases_dir: str, context_uploads_dir: str = None) -> str:
         
-        if not self.model:
+        if not self.api_key:
             return "Error: GEMINI_API_KEY is not set. Please set it in the environment."
+        
+        # Ensure genai is configured (in case it wasn't set during init)
+        try:
+            genai.configure(api_key=self.api_key)
+        except Exception as e:
+            return f"Error: Failed to configure Gemini API: {str(e)}"
 
         # 1. Load Context
         print("Loading context...")
@@ -96,7 +108,7 @@ You are an expert game design specification writer. Your role is to create clear
 
 # FORMATTING RULES
 - Use clean formatting.
-- **CRITICAL**: Do NOT use markdown asterisks (**) for bolding. Use HTML `<b>` tags instead (e.g., `<b>Header</b>`).
+- CRITICAL: Do NOT use any bolding (no markdown **, no HTML <b> tags). Use plain text only.
 - Use simple bullet points with hyphens (-) for lists.
 - Keep headings simple with ## for main sections.
 - Ensure all text is copy-paste ready.
@@ -109,7 +121,7 @@ You are an expert game design specification writer. Your role is to create clear
 - Each point should be actionable and clear.
 - Focus on "what" and "why" before "how".
 - Anticipate questions developers and QA might have.
-- **BE CONCISE**: Avoid fluff, filler words, and long-winded explanations.
+- BE CONCISE: Avoid fluff, filler words, and long-winded explanations.
 - Keep descriptions short and to the point.
 
 # USER REQUEST
@@ -137,49 +149,49 @@ While following the clean style above, you MUST adhere to the following structur
 16. Changelog
 
 ## Special Formatting for UI Slides (Section 8)
-For these slides ONLY, use a simple Key: Value format (do not use bolding for keys, just plain text):
-- **Header**: ...
-- **Sub text**: ...
-- **CTA**: ...
-- **CTA functionality**: ...
-- **Surfacing conditions**: ...
-- **Popup Priority**: ...
-- **Mockup**: {{FIGMA_IMAGE:ID}}
+For these slides ONLY, use a simple Key: Value format (no bolding, just plain text):
+- Header: ...
+- Sub text: ...
+- CTA: ...
+- CTA functionality: ...
+- Surfacing conditions: ...
+- Popup Priority: ...
+- Mockup: {{FIGMA_IMAGE:ID}}
 
 ## Special Formatting for Flow Slides (Section 9)
-- **Description**: Step-by-step flow...
-- **Mockup**: {{FIGMA_IMAGE:ID}}
+- Description: Step-by-step flow...
+- Mockup: {{FIGMA_IMAGE:ID}}
 
 ## Special Formatting for Vision/Goals (Sections 3 & 4)
 Use sub-headers for the split sections:
-**Vision**
+Vision
 - Point 1
 - Point 2
 
-**Anti-vision**
+Anti-vision
 - Point 1
 - Point 2
 
 CONTENT SOURCES:
-- **Slides Content** (Reference for tone/style):
+- Slides Content (Reference for tone/style):
 {self._format_docs(slides)}
 
-- **Edge Cases**:
+- Edge Cases:
 {edge_cases_content}
 
-- **Additional User Context**:
+- Additional User Context:
 {custom_context}
 
-- **Figma Data (JSON)**:
+- Figma Data (JSON):
 {figma_content}
 
 INSTRUCTIONS FOR FIGMA DATA:
-1.  **Identifying Screens**: Treat each Top-Level Frame as a UI Screen. Use frame name as <Screen Name>.
-2.  **Extracting Content**: Use `text_content` to fill Header, Sub text, CTA.
-3.  **Understanding Flows**: Use `transitions` to describe flows.
-4.  **Using Images**: Use `{{FIGMA_IMAGE:FRAME_ID}}` exactly as provided in the "AVAILABLE MOCKUPS" list.
+1.  Identifying Screens: Treat each Top-Level Frame as a UI Screen. Use frame name as <Screen Name>.
+2.  Extracting Content: Use `text_content` to fill Header, Sub text, CTA.
+3.  Understanding Flows: Use `transitions` to describe flows.
+4.  Using Images: Use `{{FIGMA_IMAGE:FRAME_ID}}` exactly as provided in the "AVAILABLE MOCKUPS" list.
 
-- **Examples** (Mimic the depth and actionable detail):
+- Examples (Mimic the depth and actionable detail):
 {self._format_docs(gdd_examples)}
 """
         # 4. Generate
@@ -187,8 +199,8 @@ INSTRUCTIONS FOR FIGMA DATA:
         import time
         
         # Strategy: Try Pro first, then fallback to Flash if rate limited
-        # Updated to use Gemini 2.5 models as 1.5 are not available for this user
-        models_to_try = ['gemini-2.5-pro', 'gemini-2.5-flash']
+        # Updated to use Gemini 2.5 models - try flash first as it has better quota availability
+        models_to_try = ['gemini-2.5-flash', 'gemini-2.5-pro']
         
         last_error = "Unknown error"
         for model_name in models_to_try:
@@ -221,7 +233,7 @@ INSTRUCTIONS FOR FIGMA DATA:
                             replacement = f"[![Mockup]({url})]({deep_link})"
                         else:
                             # Image fetch failed, provide a text link fallback
-                            replacement = f"[**[View Mockup in Figma]**]({deep_link})"
+                            replacement = f"[View Mockup in Figma]({deep_link})"
                         
                         if f_id in generated_text:
                             print(f"DEBUG: Replacing {f_id} with {'Image' if url else 'Fallback Link'}")
@@ -241,19 +253,24 @@ INSTRUCTIONS FOR FIGMA DATA:
                     last_error = error_str
                     print(f"Error with {model_name} (Attempt {attempt+1}): {error_str}")
                     
-                    if "429" in error_str:
+                    if "429" in error_str or "quota" in error_str.lower() or "Quota exceeded" in error_str:
                         if attempt < max_retries - 1:
-                            print(f"Quota exceeded. Retrying in {retry_delay}s...")
+                            print(f"Quota exceeded for {model_name}. Retrying in {retry_delay}s...")
                             time.sleep(retry_delay)
                             retry_delay *= 2
                         else:
                             print(f"Max retries exceeded for {model_name}. Switching models if available.")
+                            # Break to try next model
+                            break
                     else:
                         # If it's not a rate limit (e.g. invalid argument), fail immediately or try next model?
                         # Usually safe to try next model.
                         break
         
-        return f"Error: Failed to generate content. Last error: {last_error}"
+        # Check if it's a quota error
+        if "429" in last_error or "quota" in last_error.lower() or "Quota exceeded" in last_error:
+            return f"Error: API quota exceeded. Please check your Gemini API quota limits. Details: {last_error[:200]}"
+        return f"Error: Failed to generate content. Last error: {last_error[:200]}"
 
     def _format_docs(self, docs: List[dict]) -> str:
         out = ""

@@ -10,6 +10,11 @@ from app.services.generator import GeneratorService
 from app.services.parser import DocumentParser
 from app.services.analyzer import EdgeCaseAnalyzer
 
+# Load .env file from the backend directory
+env_path = os.path.join(os.path.dirname(__file__), '.env')
+load_dotenv(env_path)
+
+# Also try loading from current directory as fallback
 load_dotenv()
 
 app = FastAPI(title="GDD Maker API")
@@ -45,11 +50,13 @@ def read_root():
 from app.services.pptx_generator import PPTXGenerator
 from app.services.qa_service import QAService
 from app.services.chat_service import SpecChatService
+from app.services.verifier import SpecVerifier
 import uuid
 
 pptx_generator = PPTXGenerator()
 qa_service = QAService()
 chat_service = SpecChatService()
+verifier_service = SpecVerifier()
 
 class QARequest(BaseModel):
     question: str
@@ -78,9 +85,19 @@ def check_files():
 
 @app.post("/api/analyze")
 def analyze_prompt(request: GenerateRequest):
-    # Quick check using just the prompt
-    questions = qa_service.analyze_prompt(request.prompt)
-    return {"questions": questions}
+    try:
+        # Quick check using just the prompt
+        questions = qa_service.analyze_prompt(request.prompt)
+        return {"questions": questions}
+    except Exception as e:
+        error_msg = str(e)
+        if "API key" in error_msg.lower() or "API_KEY" in error_msg:
+            raise HTTPException(status_code=401, detail="Invalid or missing Gemini API key. Please check your .env file.")
+        if "quota" in error_msg.lower() or "429" in error_msg or "Quota exceeded" in error_msg:
+            raise HTTPException(status_code=429, detail=f"API quota exceeded. {error_msg[:300]}")
+        # If analysis fails, return empty questions so generation can proceed
+        print(f"Analysis error (proceeding anyway): {e}")
+        return {"questions": []}
 
 @app.post("/api/save-qa")
 def save_qa(request: QARequest):
@@ -114,37 +131,103 @@ async def upload_context(file: UploadFile = File(...), description: str = Form(.
         
     return {"status": "success", "filename": file.filename}
 
+@app.post("/api/verify-spec")
+async def verify_spec(file: UploadFile = File(...)):
+    """
+    Verifies a spec (PDF or PPT) against existing specs.
+    Checks for conflicts, gaps, threats, and format issues.
+    """
+    try:
+        # Save uploaded file temporarily
+        import tempfile
+        with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file.filename)[1]) as tmp_file:
+            content = await file.read()
+            tmp_file.write(content)
+            tmp_path = tmp_file.name
+        
+        # Parse the spec file
+        spec_content = DocumentParser.parse_file(tmp_path)
+        
+        # Load all existing specs for context
+        all_gdds = DocumentParser.load_documents_from_dir(GDDS_DIR)
+        all_slides = DocumentParser.load_documents_from_dir(SLIDES_DIR)
+        
+        # Build context string from all specs
+        context_parts = []
+        for doc in all_gdds + all_slides:
+            context_parts.append(f"--- SPEC: {doc['filename']} ---\n{doc['content'][:5000]}")  # Limit each spec
+        
+        all_specs_context = "\n\n".join(context_parts)
+        
+        # Verify the spec
+        result = verifier_service.verify_spec(spec_content, file.filename, all_specs_context)
+        
+        # Clean up temp file
+        os.unlink(tmp_path)
+        
+        return result
+        
+    except Exception as e:
+        return {
+            "error": f"Verification failed: {str(e)}",
+            "conflicts": [],
+            "gaps": [],
+            "threats": [],
+            "format_issues": [],
+            "questions": []
+        }
+
 @app.post("/api/generate")
 def generate_gdd(request: GenerateRequest):
-    # 1. Generate Markdown GDD
-    gdd_markdown = generator_service.generate_gdd(
-        request.prompt, 
-        request.figma_token, 
-        request.figma_url,
-        GDDS_DIR,
-        SLIDES_DIR,
-        EDGE_CASES_DIR,
-        CONTEXT_UPLOADS_DIR
-    )
-    
-    # 2. Convert to PPTX
-    filename = f"gdd_{uuid.uuid4()}.pptx"
-    output_path = os.path.join("static/generated", filename)
-    full_output_path = os.path.join(os.path.dirname(__file__), output_path)
-    
-    # Ensure directory exists
-    os.makedirs(os.path.dirname(full_output_path), exist_ok=True)
-    
-    # Find template
-    template_path = None
-    for f in os.listdir(SLIDES_DIR):
-        if f.endswith(".pptx") and not f.startswith("~"):
-            template_path = os.path.join(SLIDES_DIR, f)
-            break
+    try:
+        # 1. Generate Markdown GDD
+        gdd_markdown = generator_service.generate_gdd(
+            request.prompt, 
+            request.figma_token, 
+            request.figma_url,
+            GDDS_DIR,
+            SLIDES_DIR,
+            EDGE_CASES_DIR,
+            CONTEXT_UPLOADS_DIR
+        )
+        
+        # Check if generation failed due to API key
+        if gdd_markdown.startswith("Error:"):
+            raise HTTPException(status_code=400, detail=gdd_markdown)
+        
+        # Clean HTML tags from markdown for display (but keep original for PPTX)
+        import re
+        # Remove all HTML tags including <b>, </b>, etc. - no bolding needed
+        gdd_markdown_clean = re.sub(r'<[^>]+>', '', gdd_markdown)
+        
+        # 2. Convert to PPTX (use original markdown with HTML tags for PPTX generation)
+        filename = f"gdd_{uuid.uuid4()}.pptx"
+        output_path = os.path.join("static/generated", filename)
+        full_output_path = os.path.join(os.path.dirname(__file__), output_path)
+        
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(full_output_path), exist_ok=True)
+        
+        # Find template
+        template_path = None
+        if os.path.exists(SLIDES_DIR):
+            for f in os.listdir(SLIDES_DIR):
+                if f.endswith(".pptx") and not f.startswith("~"):
+                    template_path = os.path.join(SLIDES_DIR, f)
+                    break
             
-    pptx_generator.create_presentation(gdd_markdown, full_output_path, template_path)
-    
-    return {
-        "gdd": gdd_markdown,
-        "pptx_url": f"/static/generated/{filename}"
-    }
+        pptx_generator.create_presentation(gdd_markdown, full_output_path, template_path)
+        
+        return {
+            "gdd": gdd_markdown_clean,  # Return cleaned markdown for display
+            "pptx_url": f"/static/generated/{filename}"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_msg = str(e)
+        if "API key" in error_msg.lower() or "API_KEY" in error_msg:
+            raise HTTPException(status_code=401, detail="Invalid or missing Gemini API key. Please check your .env file.")
+        if "quota" in error_msg.lower() or "429" in error_msg or "Quota exceeded" in error_msg:
+            raise HTTPException(status_code=429, detail=f"API quota exceeded. Please check your Gemini API quota limits. {error_msg[:300]}")
+        raise HTTPException(status_code=500, detail=f"Generation failed: {error_msg[:300]}")

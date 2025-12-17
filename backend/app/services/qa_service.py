@@ -8,7 +8,8 @@ class QAService:
         self.history_file = "../data/qa_history/history.json"
         if self.api_key:
             genai.configure(api_key=self.api_key)
-            self.model = genai.GenerativeModel('gemini-pro-latest')
+            # Use gemini-2.5-flash for better quota availability
+            self.model = genai.GenerativeModel('gemini-2.5-flash')
         else:
             self.model = None
 
@@ -98,5 +99,11 @@ OUTPUT FORMAT:
                 return [text] # Return raw text if parsing fails
                 
         except Exception as e:
+            error_str = str(e)
             print(f"Error analyzing prompt: {e}")
+            # Re-raise API key and quota errors so they can be handled properly
+            if "API key" in error_str.lower() or "API_KEY" in error_str:
+                raise
+            if "429" in error_str or "quota" in error_str.lower() or "Quota exceeded" in error_str:
+                raise Exception(f"API quota exceeded: {error_str[:200]}")
             return []
