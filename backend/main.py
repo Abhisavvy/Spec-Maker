@@ -43,9 +43,26 @@ class GenerateRequest(BaseModel):
     figma_token: Optional[str] = None
     figma_url: Optional[str] = None
 
+class EnhanceMeetingDataRequest(BaseModel):
+    meeting_data: str
+
 @app.get("/")
 def read_root():
     return FileResponse("static/index.html")
+
+@app.post("/api/enhance-meeting-data")
+def enhance_meeting_data(request: EnhanceMeetingDataRequest):
+    """
+    Enhances meeting data format to include all required spec sections.
+    Automatically fills in missing sections based on existing content.
+    """
+    try:
+        from app.services.meeting_data_enhancer import MeetingDataEnhancer
+        enhancer = MeetingDataEnhancer()
+        enhanced = enhancer.enhance_meeting_data(request.meeting_data)
+        return {"enhanced_data": enhanced}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Enhancement failed: {str(e)}")
 
 from app.services.pptx_generator import PPTXGenerator
 from app.services.qa_service import QAService
@@ -86,9 +103,26 @@ def check_files():
 @app.post("/api/analyze")
 def analyze_prompt(request: GenerateRequest):
     try:
-        # Quick check using just the prompt
+        # Analyze prompt and check for conflicts
+        from app.services.context_analyzer import ContextAnalyzer
+        
+        analyzer = ContextAnalyzer()
+        analysis = analyzer.analyze_all_specs(GDDS_DIR, SLIDES_DIR)
+        
+        # Check for conflicts
+        conflicts = analyzer.find_potential_conflicts(request.prompt, analysis)
+        
+        # Get clarifying questions
         questions = qa_service.analyze_prompt(request.prompt)
-        return {"questions": questions}
+        
+        return {
+            "questions": questions,
+            "conflicts": conflicts,
+            "context_stats": {
+                "total_specs": analysis['stats']['total_specs'],
+                "features_found": len(analysis['features'])
+            }
+        }
     except Exception as e:
         error_msg = str(e)
         if "API key" in error_msg.lower() or "API_KEY" in error_msg:
@@ -97,7 +131,7 @@ def analyze_prompt(request: GenerateRequest):
             raise HTTPException(status_code=429, detail=f"API quota exceeded. {error_msg[:300]}")
         # If analysis fails, return empty questions so generation can proceed
         print(f"Analysis error (proceeding anyway): {e}")
-        return {"questions": []}
+        return {"questions": [], "conflicts": []}
 
 @app.post("/api/save-qa")
 def save_qa(request: QARequest):
@@ -176,6 +210,22 @@ async def verify_spec(file: UploadFile = File(...)):
             "format_issues": [],
             "questions": []
         }
+
+@app.post("/api/refresh-context")
+def refresh_context():
+    """Force refresh the context analysis cache."""
+    try:
+        from app.services.context_analyzer import ContextAnalyzer
+        analyzer = ContextAnalyzer()
+        analysis = analyzer.analyze_all_specs(GDDS_DIR, SLIDES_DIR, force_refresh=True)
+        return {
+            "status": "success",
+            "stats": analysis['stats'],
+            "features": len(analysis['features']),
+            "terminology": len(analysis['terminology'])
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/generate")
 def generate_gdd(request: GenerateRequest):

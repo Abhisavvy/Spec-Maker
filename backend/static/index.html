@@ -277,12 +277,24 @@
             </div>
         </div>
 
+        <div id="conflictsSection" class="card" style="display:none; border-color: #ff6b6b; background: #ffe0e0;">
+            <h3>⚠️ Potential Conflicts Detected</h3>
+            <p>This spec may overlap with existing features:</p>
+            <div id="conflictsList" style="margin: 10px 0; padding: 10px; background: white; border-radius: 4px;"></div>
+            <p style="font-size: 0.9em; color: #666;">Review these conflicts before generating. The AI will attempt to address them.</p>
+        </div>
+
         <div id="qaSection" class="card" style="display:none; border-color: #ffc107; background: #fff3cd;">
             <h3>Clarifying Questions</h3>
             <p>I need a bit more info to write a great GDD:</p>
             <div id="questionsList"></div>
             <textarea id="answers" placeholder="Type your answers here..."></textarea>
             <button id="submitAnswersBtn" class="btn">Submit Answers & Generate</button>
+        </div>
+
+        <div id="contextInfo" class="card" style="display:none; border-color: #28a745; background: #d4edda;">
+            <h3>✓ Context Loaded</h3>
+            <p id="contextStats"></p>
         </div>
 
         <div id="output"></div>
@@ -727,7 +739,7 @@
             }, 100);
 
             try {
-                // 1. Analyze
+                // 1. Analyze (includes conflict detection)
                 const res = await fetch(`${API_URL}/api/analyze`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -755,6 +767,26 @@
                 }
                 
                 const data = await res.json();
+
+                // Show context stats
+                const contextInfo = document.getElementById('contextInfo');
+                const contextStats = document.getElementById('contextStats');
+                if (data.context_stats) {
+                    contextStats.textContent = `Analyzed ${data.context_stats.total_specs} existing specs with ${data.context_stats.features_found} features for full context.`;
+                    contextInfo.style.display = 'block';
+                }
+
+                // Show conflicts if any
+                const conflictsSection = document.getElementById('conflictsSection');
+                const conflictsList = document.getElementById('conflictsList');
+                if (data.conflicts && data.conflicts.length > 0) {
+                    conflictsList.innerHTML = '<ul style="margin: 0; padding-left: 20px;">' + 
+                        data.conflicts.map(c => `<li style="margin: 5px 0;">${c}</li>`).join('') + 
+                        '</ul>';
+                    conflictsSection.style.display = 'block';
+                } else {
+                    conflictsSection.style.display = 'none';
+                }
 
                 if (data.questions && data.questions.length > 0) {
                     // Show questions

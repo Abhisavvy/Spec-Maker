@@ -1,6 +1,18 @@
 [SETUP.md](https://github.com/user-attachments/files/23787017/SETUP.md)
 # Spec Maker Setup Guide
 
+## 🆕 New: Full Context System
+
+The AI now analyzes **ALL your existing specs** to:
+- ✅ Detect conflicts with existing features
+- ✅ Use consistent terminology across all specs
+- ✅ Reference and integrate with existing systems
+- ✅ Maintain quality and style patterns
+
+**See [WHATS_NEW.md](WHATS_NEW.md) for complete details.**
+
+---
+
 Follow these steps to set up the project on a new device (Windows/Mac/Linux).
 
 ## 1. Prerequisites
