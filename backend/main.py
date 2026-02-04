@@ -208,7 +208,8 @@ async def verify_spec(file: UploadFile = File(...)):
             "gaps": [],
             "threats": [],
             "format_issues": [],
-            "questions": []
+            "questions": [],
+            "alerts": []
         }
 
 @app.post("/api/refresh-context")

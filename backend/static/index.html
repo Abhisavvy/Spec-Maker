@@ -398,7 +398,7 @@
     <div id="verifier" class="tab-content">
         <div class="card">
             <h2>Spec Verifier</h2>
-            <p>Upload a spec (PDF or PPT) to check for conflicts, gaps, potential threats, and format issues against all existing specs (53 specs).</p>
+            <p>Upload a spec (PDF or PPT) to check for conflicts, gaps, potential threats, and format issues against all existing specs.</p>
             
             <div style="margin: 20px 0;">
                 <input type="file" id="verifyFile" accept=".pdf,.pptx,.ppt" style="margin-bottom: 10px; width: 100%; padding: 8px;">
@@ -410,6 +410,11 @@
                 <div class="card" style="background: #fff3cd; border-color: #ffc107; margin-top: 20px;">
                     <h3>Summary</h3>
                     <div id="verifySummary"></div>
+                </div>
+
+                <div class="card" id="verifyAlertsCard" style="background: #f8d7da; border-color: #dc3545; margin-top: 20px;">
+                    <h3>⚠️ Alerts (Missing Mock Link / Popup Priority)</h3>
+                    <div id="verifyAlerts"></div>
                 </div>
 
                 <div class="card" style="background: #f8d7da; border-color: #dc3545; margin-top: 20px;">
@@ -976,6 +981,23 @@
 
                 // Summary
                 document.getElementById('verifySummary').innerHTML = `<p>${data.summary || 'No summary available.'}</p>`;
+
+                // Alerts (Missing Mock Link / Popup Priority)
+                const alerts = data.alerts || [];
+                const verifyAlertsCard = document.getElementById('verifyAlertsCard');
+                if (alerts.length > 0) {
+                    verifyAlertsCard.style.display = 'block';
+                    const alertsHtml = alerts.map(a => `
+                        <div style="margin: 10px 0; padding: 10px; background: white; border-radius: 4px;">
+                            <strong>${a.type === 'missing_mock_link' ? '⚠️ Missing Mock Link' : '⚠️ Missing Popup Priority'}</strong>
+                            <span style="color: #666;"> — ${a.section || 'Section'}</span><br>
+                            <p style="margin: 5px 0 0 0;">${a.description || ''}</p>
+                        </div>
+                    `).join('');
+                    document.getElementById('verifyAlerts').innerHTML = alertsHtml;
+                } else {
+                    verifyAlertsCard.style.display = 'none';
+                }
 
                 // Conflicts
                 const conflictsHtml = data.conflicts && data.conflicts.length > 0

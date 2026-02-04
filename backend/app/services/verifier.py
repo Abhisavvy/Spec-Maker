@@ -1,7 +1,63 @@
 import os
+import re
 import google.generativeai as genai
 from app.services.parser import DocumentParser
 from typing import Dict, List, Optional
+
+def _check_mock_links_and_popup_priority(spec_content: str) -> List[Dict]:
+    """
+    Scan spec text for missing Mock Link and missing Popup Priority.
+    Returns a list of alerts: { "type": "missing_mock_link" | "missing_popup_priority", "section": str, "description": str }
+    """
+    alerts = []
+    if not spec_content or not spec_content.strip():
+        return alerts
+
+    # Split into sections by ## headers
+    sections = re.split(r'\n(?=##\s+)', spec_content)
+    
+    for block in sections:
+        lines = block.split('\n')
+        if not lines:
+            continue
+        first_line = lines[0].strip()
+        # Section title: ## Something UI or ## Something Popup
+        section_title = first_line.replace('#', '').strip() if first_line.startswith('#') else ''
+        block_text = block.lower()
+        has_mockup_label = 'mockup:' in block_text or 'mock up:' in block_text
+        has_popup_in_title = 'popup' in section_title.lower() or 'modal' in section_title.lower()
+        has_popup_in_content = 'popup' in block_text or 'modal' in block_text
+        
+        # Check Mock Link: UI-like section (has Header/CTA or "UI" in title) should have a valid mockup
+        is_ui_section = ' ui' in section_title.lower() or 'ui ' in section_title.lower() or ('header:' in block_text and ('cta:' in block_text or 'sub text:' in block_text))
+        if is_ui_section or has_mockup_label:
+            # Valid mock link: FIGMA_IMAGE:..., http, or markdown image/link [...](...)
+            mockup_match = re.search(r'mockup\s*:\s*(.+?)(?=\n|$)', block_text, re.IGNORECASE | re.DOTALL)
+            mockup_value = (mockup_match.group(1).strip() if mockup_match else '').strip()
+            has_valid_link = (
+                'figma_image:' in mockup_value or
+                'http' in mockup_value or
+                '[' in mockup_value
+            ) or bool(re.search(r'figma_image\s*:\s*\d', mockup_value, re.IGNORECASE))
+            if has_mockup_label and (not mockup_value or not has_valid_link):
+                alerts.append({
+                    "type": "missing_mock_link",
+                    "section": section_title or "(unnamed section)",
+                    "description": "Mockup is empty or does not contain a valid link (e.g. FIGMA_IMAGE:ID or image URL)."
+                })
+        
+        # Check Popup Priority: sections that are popups should have "Popup Priority:"
+        if has_popup_in_title or (has_popup_in_content and is_ui_section):
+            has_popup_priority = bool(re.search(r'popup\s*priority\s*:', block_text))
+            if not has_popup_priority:
+                alerts.append({
+                    "type": "missing_popup_priority",
+                    "section": section_title or "(unnamed section)",
+                    "description": "Popup/Modal section does not specify Popup Priority (e.g. High/Medium/Low)."
+                })
+    
+    return alerts
+
 
 class SpecVerifier:
     def __init__(self):
@@ -36,7 +92,7 @@ Filename: {spec_filename}
 Content:
 {spec_content[:50000]}  # Limit to avoid token limits
 
-# CONTEXT: ALL EXISTING SPECS (53 specs)
+# CONTEXT: ALL EXISTING SPECS
 {all_specs_context[:200000]}  # Limit context to stay within token limits
 
 # TASK
@@ -118,17 +174,20 @@ Be thorough, specific, and actionable. Reference specific sections and existing 
 """
         
         try:
+            # Alerts for missing Mock Link and Popup Priority (from content scan)
+            alerts = _check_mock_links_and_popup_priority(spec_content)
+
             response = self.model.generate_content(prompt)
             result_text = response.text.strip()
             
             # Try to extract JSON from the response
             import json
-            import re
             
             # Find JSON in the response
             json_match = re.search(r'\{.*\}', result_text, re.DOTALL)
             if json_match:
                 result_json = json.loads(json_match.group(0))
+                result_json["alerts"] = alerts
                 return result_json
             else:
                 # Fallback: return structured text
@@ -139,6 +198,7 @@ Be thorough, specific, and actionable. Reference specific sections and existing 
                     "threats": [],
                     "format_issues": [],
                     "questions": [],
+                    "alerts": alerts,
                     "summary": "Analysis completed but could not parse structured output. See raw_analysis."
                 }
         except Exception as e:
@@ -148,6 +208,7 @@ Be thorough, specific, and actionable. Reference specific sections and existing 
                 "gaps": [],
                 "threats": [],
                 "format_issues": [],
-                "questions": []
+                "questions": [],
+                "alerts": _check_mock_links_and_popup_priority(spec_content) if spec_content else []
             }
 
