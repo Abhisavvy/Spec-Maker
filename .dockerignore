@@ -1,0 +1,11 @@
+# Don't copy these into the image
+backend/venv
+backend/__pycache__
+backend/**/__pycache__
+backend/.env
+data/
+.git
+*.pyc
+.DS_Store
+*.md
+!README.md
