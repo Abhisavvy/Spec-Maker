@@ -44,7 +44,7 @@ Follow these steps to set up the project on a new device (Windows/Mac/Linux).
 1.  In the `backend` folder, create a file named `.env`.
 2.  Add your API keys (you need to get these again if you didn't save them):
     ```env
-    GEMINI_API_KEY=your_gemini_api_key_here
+    ANTHROPIC_API_KEY=your_anthropic_api_key_here
     ```
 
 ## 5. Run the Server
@@ -61,5 +61,5 @@ Follow these steps to set up the project on a new device (Windows/Mac/Linux).
 
 ## Nuances & Troubleshooting
 -   **Missing Data**: The `data/gdds` folder might be empty to save space. The system will create files there as you generate them.
--   **Figma Images**: If Figma images fail to load, ensure your `GEMINI_API_KEY` is valid and you have internet access.
+-   **Figma Images**: If Figma images fail to load, ensure your `ANTHROPIC_API_KEY` is valid and you have internet access.
 -   **Port Conflicts**: If port 8000 is busy, change the port in the `uvicorn` command (e.g., `--port 8001`) and update `frontend/script.js` if necessary (though it usually defaults to localhost:8000).

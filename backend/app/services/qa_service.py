@@ -1,27 +1,24 @@
 import os
-import google.generativeai as genai
+import json
+import anthropic
 from typing import List, Optional
+from app.config import get_anthropic_api_key
+
+QA_MODEL = "claude-3-5-haiku-20241022"
+
 
 class QAService:
     def __init__(self):
-        self.api_key = os.environ.get("GEMINI_API_KEY")
         self.history_file = "../data/qa_history/history.json"
-        if self.api_key:
-            genai.configure(api_key=self.api_key)
-            # Use gemini-2.5-flash for better quota availability
-            self.model = genai.GenerativeModel('gemini-2.5-flash')
-        else:
-            self.model = None
 
     def load_history(self) -> str:
         """Loads past Q&A context."""
         if os.path.exists(self.history_file):
             try:
-                import json
                 with open(self.history_file, 'r') as f:
                     data = json.load(f)
                     return "\n".join([f"Q: {item['q']}\nA: {item['a']}" for item in data])
-            except:
+            except Exception:
                 return ""
         return ""
 
@@ -30,18 +27,13 @@ class QAService:
         data = []
         if os.path.exists(self.history_file):
             try:
-                import json
                 with open(self.history_file, 'r') as f:
                     data = json.load(f)
-            except:
+            except Exception:
                 pass
-        
+
         data.append({"q": question, "a": answer})
-        
-        # Ensure dir exists
         os.makedirs(os.path.dirname(self.history_file), exist_ok=True)
-        
-        import json
         with open(self.history_file, 'w') as f:
             json.dump(data, f, indent=2)
 
@@ -50,10 +42,12 @@ class QAService:
         Analyzes the prompt and returns a list of clarifying questions if information is missing.
         Returns empty list if the prompt is sufficient.
         """
-        if not self.model:
+        api_key = get_anthropic_api_key()
+        if not api_key:
             return []
 
         history = self.load_history()
+        client = anthropic.Anthropic(api_key=api_key)
 
         analysis_prompt = f"""
 You are a Senior Game Producer. A designer has come to you with a game idea.
@@ -78,26 +72,26 @@ OUTPUT FORMAT:
 - If questions needed: A JSON-formatted list of strings, e.g., ["Question 1?", "Question 2?"]
 """
         try:
-            response = self.model.generate_content(analysis_prompt)
-            text = response.text.strip()
-            
+            response = client.messages.create(
+                model=QA_MODEL,
+                max_tokens=1024,
+                messages=[{"role": "user", "content": analysis_prompt}],
+            )
+            text = response.content[0].text.strip()
+
             if "SUFFICIENT" in text.upper():
                 return []
-            
-            # Simple parsing of the list
-            import json
+
             try:
-                # Try to find JSON array in the text
                 start = text.find('[')
                 end = text.rfind(']') + 1
                 if start != -1 and end != -1:
                     return json.loads(text[start:end])
                 else:
-                    # Fallback: split by newlines if not JSON
                     return [line.strip('- *') for line in text.split('\n') if '?' in line]
-            except:
-                return [text] # Return raw text if parsing fails
-                
+            except Exception:
+                return [text]
+
         except Exception as e:
             error_str = str(e)
             print(f"Error analyzing prompt: {e}")

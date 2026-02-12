@@ -1,24 +1,19 @@
 import os
 import json
-import google.generativeai as genai
+import time
+import random
+import anthropic
+from app.config import get_anthropic_api_key
 from app.services.parser import DocumentParser
 from typing import List, Dict
 
+# Model with large context for chat over specs
+CHAT_MODEL = "claude-sonnet-4-20250514"
+
+
 class SpecChatService:
     def __init__(self):
-        self.api_key = os.environ.get("GEMINI_API_KEY")
-        if self.api_key:
-            genai.configure(api_key=self.api_key)
-            # Use gemini-2.5-flash for large context window (1M+ tokens)
-            self.model = genai.GenerativeModel('gemini-2.5-flash')
-        else:
-            self.model = None
-        
-        # Cache context
         self.context = ""
-        
-        # Session-based conversation history (in-memory for now)
-        # In production, you'd use session IDs and persistent storage
         self.conversation_history: List[Dict[str, str]] = []
         self.history_file = "../data/qa_history/chat_history.json"
 
@@ -28,16 +23,13 @@ class SpecChatService:
         docs = []
         docs.extend(DocumentParser.load_documents_from_dir(gdds_dir))
         docs.extend(DocumentParser.load_documents_from_dir(slides_dir))
-        
+
         context_parts = []
         for doc in docs:
-            # No truncation per document - rely on 1.5 Flash's large window
             context_parts.append(f"--- DOCUMENT: {doc['filename']} ---\n{doc['content']}")
-            
+
         self.context = "\n\n".join(context_parts)
         print(f"Loaded {len(docs)} documents into context.")
-        
-        # Load conversation history
         self._load_history()
 
     def _load_history(self):
@@ -46,44 +38,28 @@ class SpecChatService:
             try:
                 with open(self.history_file, 'r') as f:
                     self.conversation_history = json.load(f)
-            except:
+            except Exception:
                 self.conversation_history = []
 
     def _save_history(self):
         """Save conversation history to file."""
         os.makedirs(os.path.dirname(self.history_file), exist_ok=True)
-        # Keep only last 20 exchanges to avoid bloat
         history_to_save = self.conversation_history[-20:]
         with open(self.history_file, 'w') as f:
             json.dump(history_to_save, f, indent=2)
 
-    def _format_history(self) -> str:
-        """Format conversation history for the prompt."""
-        if not self.conversation_history:
-            return "No previous conversation."
-        
-        history_text = ""
-        for entry in self.conversation_history[-10:]:  # Last 10 exchanges
-            history_text += f"User: {entry['question']}\nAssistant: {entry['answer']}\n\n"
-        return history_text
+    def _build_messages(self, question: str) -> List[Dict[str, str]]:
+        """Build messages list: system context + conversation history + new question."""
+        conversation_context = ""
+        if self.conversation_history:
+            for entry in self.conversation_history[-10:]:
+                conversation_context += f"User: {entry['question']}\nAssistant: {entry['answer']}\n\n"
 
-    def ask_question(self, question: str) -> str:
-        """Answers a question based on the loaded context with conversation memory."""
-        if not self.model:
-            return "Error: API Key not set."
-            
-        if not self.context:
-            return "Error: No specs loaded. Please check files first."
-
-        conversation_context = self._format_history()
-        
-        # SAFETY CAP: 250k tokens ~ 1M chars. We cap at 600k chars to be safe and leave room for history/output.
-        # This is 24x larger than the previous 25k limit.
         safe_context = self.context[:600000]
         if len(self.context) > 600000:
-            print(f"WARNING: Context truncated from {len(self.context)} to 600,000 chars to fit Free Tier limits.")
+            print(f"WARNING: Context truncated from {len(self.context)} to 600,000 chars.")
 
-        prompt = f"""
+        system_and_context = f"""
 # ROLE & EXPERTISE
 You are an expert game design analyst and consultant specializing in mobile casual games, economy systems, and retention mechanics. You have deep knowledge of:
 - Player psychology and behavioral patterns
@@ -166,39 +142,52 @@ When evaluating ideas:
 {safe_context}
 
 # CONVERSATION HISTORY:
-{conversation_context}
-
-# USER QUESTION:
-{question}
+{conversation_context or "No previous conversation."}
 """
-        import time
-        import random
-        
+
+        # Single user message containing system context + question (Claude accepts long user content)
+        user_content = f"{system_and_context}\n\n# USER QUESTION:\n{question}"
+        return [{"role": "user", "content": user_content}]
+
+    def ask_question(self, question: str) -> str:
+        """Answers a question based on the loaded context with conversation memory."""
+        api_key = get_anthropic_api_key()
+        if not api_key:
+            return "Error: API key is not set. Enter your Anthropic API key in the box at the top and click Save key."
+
+        if not self.context:
+            return "Error: No specs loaded. Please check files first."
+
+        messages = self._build_messages(question)
         max_retries = 3
         base_delay = 5
-        
+
+        client = anthropic.Anthropic(api_key=api_key)
         for attempt in range(max_retries):
             try:
-                response = self.model.generate_content(prompt)
-                answer = response.text
-                
-                # Save to history
+                response = client.messages.create(
+                    model=CHAT_MODEL,
+                    max_tokens=4096,
+                    messages=messages,
+                )
+                answer = response.content[0].text
+
                 self.conversation_history.append({
                     "question": question,
                     "answer": answer
                 })
                 self._save_history()
-                
+
                 return answer
             except Exception as e:
                 error_str = str(e)
-                if "429" in error_str:
+                if "rate_limit" in error_str.lower() or "429" in error_str:
                     delay = base_delay * (2 ** attempt) + random.uniform(0, 1)
                     print(f"Rate limit hit. Retrying in {delay:.2f}s... (Attempt {attempt + 1}/{max_retries})")
                     time.sleep(delay)
                 else:
-                    return f"Error answering question: {str(e)}"
-        
+                    return f"Error answering question: {error_str}"
+
         return "Error: Rate limit exceeded after multiple retries. Please wait a minute and try again."
 
     def clear_history(self):

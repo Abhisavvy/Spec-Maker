@@ -1,18 +1,7 @@
-import os
-import google.generativeai as genai
-from dotenv import load_dotenv
-
-load_dotenv()
-
-api_key = os.environ.get("GEMINI_API_KEY")
-if not api_key:
-    print("No API key found in .env")
-else:
-    genai.configure(api_key=api_key)
-    print("Listing models...")
-    try:
-        for m in genai.list_models():
-            if 'generateContent' in m.supported_generation_methods:
-                print(m.name)
-    except Exception as e:
-        print(f"Error listing models: {e}")
+"""List Claude models available for use (documentation helper)."""
+# Anthropic does not expose a list_models API; models are fixed.
+# See: https://docs.anthropic.com/en/docs/build-with-claude/model-deprecations
+print("Claude models used in this project:")
+print("  - claude-sonnet-4-20250514 (spec generation, chat)")
+print("  - claude-3-5-haiku-20241022 (QA analysis, fallback)")
+print("Set ANTHROPIC_API_KEY in .env to use the API.")

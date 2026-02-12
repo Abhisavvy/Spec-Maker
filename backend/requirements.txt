@@ -2,7 +2,7 @@ fastapi
 uvicorn
 python-multipart
 python-pptx
-google-generativeai
+anthropic
 python-dotenv
 requests
 pillow

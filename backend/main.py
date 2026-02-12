@@ -68,6 +68,7 @@ from app.services.pptx_generator import PPTXGenerator
 from app.services.qa_service import QAService
 from app.services.chat_service import SpecChatService
 from app.services.verifier import SpecVerifier
+from app.config import get_anthropic_api_key, set_anthropic_api_key
 import uuid
 
 pptx_generator = PPTXGenerator()
@@ -81,6 +82,24 @@ class QARequest(BaseModel):
 
 class ChatRequest(BaseModel):
     question: str
+
+
+class ApiKeyRequest(BaseModel):
+    api_key: str
+
+
+@app.get("/api/api-key-status")
+def api_key_status():
+    """Return whether an API key is configured (never returns the actual key)."""
+    return {"set": bool(get_anthropic_api_key())}
+
+
+@app.post("/api/set-api-key")
+def set_api_key(request: ApiKeyRequest):
+    """Store the Anthropic API key for this session (in memory)."""
+    set_anthropic_api_key(request.api_key)
+    return {"status": "saved"}
+
 
 @app.get("/api/check-files")
 def check_files():
@@ -126,7 +145,7 @@ def analyze_prompt(request: GenerateRequest):
     except Exception as e:
         error_msg = str(e)
         if "API key" in error_msg.lower() or "API_KEY" in error_msg:
-            raise HTTPException(status_code=401, detail="Invalid or missing Gemini API key. Please check your .env file.")
+            raise HTTPException(status_code=401, detail="Invalid or missing API key. Enter your Anthropic API key in the app and click Save.")
         if "quota" in error_msg.lower() or "429" in error_msg or "Quota exceeded" in error_msg:
             raise HTTPException(status_code=429, detail=f"API quota exceeded. {error_msg[:300]}")
         # If analysis fails, return empty questions so generation can proceed
@@ -278,7 +297,7 @@ def generate_gdd(request: GenerateRequest):
     except Exception as e:
         error_msg = str(e)
         if "API key" in error_msg.lower() or "API_KEY" in error_msg:
-            raise HTTPException(status_code=401, detail="Invalid or missing Gemini API key. Please check your .env file.")
+            raise HTTPException(status_code=401, detail="Invalid or missing API key. Enter your Anthropic API key in the app and click Save.")
         if "quota" in error_msg.lower() or "429" in error_msg or "Quota exceeded" in error_msg:
-            raise HTTPException(status_code=429, detail=f"API quota exceeded. Please check your Gemini API quota limits. {error_msg[:300]}")
+            raise HTTPException(status_code=429, detail=f"API quota exceeded. {error_msg[:300]}")
         raise HTTPException(status_code=500, detail=f"Generation failed: {error_msg[:300]}")

@@ -1,0 +1,62 @@
+.debug-overlay {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  background: rgba(0, 0, 0, 0.8);
+  color: #00ff00;
+  padding: 15px 20px;
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+  border: 2px solid #00ff00;
+  border-radius: 8px;
+  min-width: 300px;
+  z-index: 1000;
+  backdrop-filter: blur(10px);
+}
+
+.debug-overlay h3 {
+  margin: 0 0 10px 0;
+  color: #00ffff;
+  font-size: 16px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.debug-line {
+  display: flex;
+  justify-content: space-between;
+  margin: 5px 0;
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(0, 255, 0, 0.2);
+}
+
+.debug-line .label {
+  font-weight: bold;
+  color: #00ff00;
+}
+
+.debug-line .value {
+  color: #88ff88;
+  font-family: monospace;
+}
+
+.debug-line .value.active {
+  color: #ffff00;
+  font-weight: bold;
+}
+
+.debug-controls {
+  margin-top: 15px;
+  padding-top: 10px;
+  border-top: 2px solid #00ff00;
+  font-size: 12px;
+}
+
+.debug-controls p {
+  margin: 3px 0;
+  color: #88ff88;
+}
+
+.debug-controls strong {
+  color: #00ffff;
+}

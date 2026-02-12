@@ -269,6 +269,16 @@
 <body>
     <h1>Spec Maker</h1>
 
+    <div class="card" style="background: #e8f4fd; border-color: #007bff;">
+        <h2 style="margin-top: 0;">Anthropic API Key</h2>
+        <p style="margin-bottom: 10px; color: #555;">Required for generating specs and chat. Stored in this session only (not saved to server).</p>
+        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+            <input type="password" id="apiKeyInput" placeholder="sk-ant-..." style="flex: 1; min-width: 200px; padding: 8px; max-width: 400px;">
+            <button id="saveApiKeyBtn" class="btn">Save key</button>
+            <span id="apiKeyStatus" class="status"></span>
+        </div>
+    </div>
+
     <div class="tabs">
         <div class="tab active" onclick="switchTab('generator', this)">Generator</div>
         <div class="tab" onclick="switchTab('chat', this)">Chat with Specs</div>
@@ -447,6 +457,70 @@
 
     <script>
         const API_URL = '';
+        const API_KEY_STORAGE = 'specmaker_anthropic_api_key';
+
+        // API key: persistent in localStorage, sync to backend on load and on save
+        async function refreshApiKeyStatus() {
+            const statusEl = document.getElementById('apiKeyStatus');
+            try {
+                const res = await fetch(`${API_URL}/api/api-key-status`);
+                const data = await res.json();
+                statusEl.textContent = data.set ? '✓ API key set' : 'No API key set';
+                statusEl.style.color = data.set ? '#28a745' : '#666';
+            } catch (e) {
+                statusEl.textContent = '';
+            }
+        }
+
+        function loadStoredApiKey() {
+            try {
+                const key = localStorage.getItem(API_KEY_STORAGE);
+                if (key) {
+                    document.getElementById('apiKeyInput').value = key;
+                    return key;
+                }
+            } catch (e) {}
+            return null;
+        }
+
+        document.getElementById('saveApiKeyBtn').addEventListener('click', async () => {
+            const input = document.getElementById('apiKeyInput');
+            const key = (input.value || '').trim();
+            const statusEl = document.getElementById('apiKeyStatus');
+            if (!key) {
+                statusEl.textContent = 'Enter a key first.';
+                statusEl.style.color = '#856404';
+                return;
+            }
+            try {
+                await fetch(`${API_URL}/api/set-api-key`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ api_key: key })
+                });
+                try { localStorage.setItem(API_KEY_STORAGE, key); } catch (e) {}
+                statusEl.textContent = '✓ Saved (stored locally)';
+                statusEl.style.color = '#28a745';
+            } catch (e) {
+                statusEl.textContent = 'Failed to save.';
+                statusEl.style.color = '#dc3545';
+            }
+        });
+
+        // On load: restore from localStorage and push to backend so server has it
+        (async function initApiKey() {
+            const stored = loadStoredApiKey();
+            if (stored) {
+                try {
+                    await fetch(`${API_URL}/api/set-api-key`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ api_key: stored })
+                    });
+                } catch (e) {}
+            }
+            refreshApiKeyStatus();
+        })();
 
         function switchTab(tabId, clickedTab) {
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));

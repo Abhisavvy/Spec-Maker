@@ -1,0 +1,34 @@
+HOW TO ADD PROFESSIONAL ASSETS
+==============================
+
+I've set up everything for you! Here's the fastest way to add assets:
+
+1. VISIT: https://polyhaven.com/textures
+
+2. DOWNLOAD these textures (all free, CC0 license):
+   - Concrete Floor: https://polyhaven.com/a/concrete_floor_001
+   - Metal Rusty: https://polyhaven.com/a/metal_rusty_001  
+   - Concrete Wall: https://polyhaven.com/a/concrete_wall_001
+
+3. FOR EACH TEXTURE:
+   - Click "Download" → Choose "JPG" format
+   - Extract the ZIP file
+   - Rename files:
+     * diffuse_1k.jpg → albedo.jpg
+     * normal_1k.jpg → normal.jpg
+     * roughness_1k.jpg → roughness.jpg
+     * metalness_1k.jpg → metallic.jpg
+     * ao_1k.jpg → ao.jpg
+
+4. PLACE FILES:
+   - Concrete Floor → textures/ground/
+   - Metal Rusty → textures/obstacle/
+   - Concrete Wall → textures/platform/
+
+5. UPDATE: src/config/assets.ts (uncomment the paths)
+
+6. RESTART: npm run dev
+
+That's it! The game will automatically use your professional assets.
+
+See QUICK_ASSET_SETUP.md for more details.
