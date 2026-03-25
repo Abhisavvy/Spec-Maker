@@ -2,7 +2,7 @@ import os
 from typing import List, Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -10,11 +10,11 @@ from app.services.generator import GeneratorService
 from app.services.parser import DocumentParser
 from app.services.analyzer import EdgeCaseAnalyzer
 
-# Load .env file from the backend directory
-env_path = os.path.join(os.path.dirname(__file__), '.env')
-load_dotenv(env_path)
-
-# Also try loading from current directory as fallback
+# Load .env from backend directory (absolute path so it works regardless of cwd)
+_backend_dir = os.path.dirname(os.path.abspath(__file__))
+_env_path = os.path.join(_backend_dir, ".env")
+load_dotenv(_env_path)
+# Fallback: current working directory (e.g. if run from project root)
 load_dotenv()
 
 app = FastAPI(title="GDD Maker API")
@@ -46,9 +46,20 @@ class GenerateRequest(BaseModel):
 class EnhanceMeetingDataRequest(BaseModel):
     meeting_data: str
 
+class ConsolidateRequest(BaseModel):
+    """Feature Spec Dashboard / PM tool: merge meeting notes via Claude."""
+
+    prompt: str
+    provider: Optional[str] = "claude"
+
 @app.get("/")
 def read_root():
     return FileResponse("static/index.html")
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    """Avoid 404 when browser requests favicon."""
+    return Response(status_code=204)
 
 @app.post("/api/enhance-meeting-data")
 def enhance_meeting_data(request: EnhanceMeetingDataRequest):
@@ -63,6 +74,36 @@ def enhance_meeting_data(request: EnhanceMeetingDataRequest):
         return {"enhanced_data": enhanced}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Enhancement failed: {str(e)}")
+
+@app.post("/api/consolidate")
+def api_consolidate(request: ConsolidateRequest):
+    """
+    Anthropic-only consolidation for external dashboards (e.g. Vercel Feature Spec tool).
+    Set dashboard "AI backend URL" to this server's origin. Requires ANTHROPIC_API_KEY.
+    """
+    try:
+        from app.services.consolidate_service import run_consolidation
+
+        text = run_consolidation(request.prompt, request.provider)
+        return {"text": text}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        err = str(e)
+        low = err.lower()
+        if (
+            "401" in err
+            or "authentication_error" in low
+            or "invalid x-api-key" in low
+            or "api key" in low
+        ):
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid or missing Anthropic API key. Set ANTHROPIC_API_KEY in backend/.env.",
+            )
+        if "429" in err or "rate" in low:
+            raise HTTPException(status_code=429, detail=err[:500])
+        raise HTTPException(status_code=500, detail=err[:2000])
 
 from app.services.pptx_generator import PPTXGenerator
 from app.services.qa_service import QAService
@@ -261,9 +302,26 @@ def generate_gdd(request: GenerateRequest):
             CONTEXT_UPLOADS_DIR
         )
         
-        # Check if generation failed due to API key
+        # Check if generation failed (API key, connection, rate limit, etc.)
         if gdd_markdown.startswith("Error:"):
-            raise HTTPException(status_code=400, detail=gdd_markdown)
+            detail = gdd_markdown
+            # 401: invalid/expired API key (Anthropic returns "authentication_error" or "invalid x-api-key")
+            if (
+                "401" in detail
+                or "authentication_error" in detail
+                or "invalid x-api-key" in detail
+                or "API key" in detail
+                or "ANTHROPIC_API_KEY" in detail
+            ):
+                raise HTTPException(
+                    status_code=401,
+                    detail="Invalid or expired Claude API key. Get a new key at https://console.anthropic.com/settings/keys and set ANTHROPIC_API_KEY in backend/.env (no quotes, no extra spaces).",
+                )
+            if "Connection" in detail or "connection" in detail or "Connection error" in detail:
+                raise HTTPException(status_code=503, detail=detail)
+            if "rate limit" in detail.lower() or "429" in detail:
+                raise HTTPException(status_code=429, detail=detail)
+            raise HTTPException(status_code=400, detail=detail)
         
         # Clean HTML tags from markdown for display (but keep original for PPTX)
         import re
