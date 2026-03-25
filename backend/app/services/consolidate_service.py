@@ -2,19 +2,15 @@
 PM / dashboard consolidation via Anthropic Messages API.
 Compatible with POST /api/consolidate { "prompt": "...", "provider": "claude" }.
 """
-import os
-from pathlib import Path
 from typing import Optional
 
 from anthropic import Anthropic
-from dotenv import load_dotenv
 
+from app.config import get_anthropic_api_key
 
-def _api_key() -> Optional[str]:
-    backend_dir = Path(__file__).resolve().parent.parent.parent
-    load_dotenv(backend_dir / ".env")
-    load_dotenv()
-    return (os.environ.get("ANTHROPIC_API_KEY") or "").strip() or None
+# Keep in sync with app.services.generator default / fallback models
+_PRIMARY = "claude-sonnet-4-20250514"
+_FALLBACK = "claude-3-5-haiku-20241022"
 
 
 def run_consolidation(prompt: str, provider: Optional[str]) -> str:
@@ -28,12 +24,14 @@ def run_consolidation(prompt: str, provider: Optional[str]) -> str:
         )
     if not (prompt or "").strip():
         raise ValueError("prompt is required")
-    key = _api_key()
+    key = get_anthropic_api_key()
     if not key:
-        raise ValueError("ANTHROPIC_API_KEY is not set")
+        raise ValueError(
+            "Anthropic API key is not set. Add ANTHROPIC_API_KEY to .env or enter the key in the app and Save."
+        )
 
     client = Anthropic(api_key=key, timeout=300.0, max_retries=2)
-    models = ["claude-sonnet-4-20250514", "claude-3-5-sonnet-20241022"]
+    models = [_PRIMARY, _FALLBACK]
     last_error: Optional[Exception] = None
     for model in models:
         try:
